@@ -18,13 +18,14 @@ const UsersPage = () => {
 
   if (!isAdmin) return <Navigate to="/planning" replace />;
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (addUser(email, name, password, role)) {
+    const ok = await addUser(email, name, password, role);
+    if (ok) {
       toast.success(`${name} ajouté`);
       setName(''); setEmail(''); setPassword(''); setRole('agent');
     } else {
-      toast.error('Email déjà utilisé');
+      toast.error('Ajout impossible (email déjà utilisé ou mot de passe trop faible)');
     }
   };
 
@@ -75,8 +76,9 @@ const UsersPage = () => {
                   <p className="font-medium">{u.name}</p>
                   <p className="text-sm text-muted-foreground">{u.email} — <span className="capitalize">{u.role}</span></p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => {
-                  if (removeUser(u.id)) toast.success('Utilisateur supprimé');
+                <Button variant="ghost" size="icon" onClick={async () => {
+                  const ok = await removeUser(u.id);
+                  if (ok) toast.success('Utilisateur supprimé');
                   else toast.error('Impossible de supprimer');
                 }} className="text-destructive hover:text-destructive">
                   <Trash2 className="h-4 w-4" />

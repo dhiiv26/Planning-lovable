@@ -1,3 +1,18 @@
+// Firestore-backed schedule store.
+// Document layout: schedules/{userId}_{date}  =>  { userId, date, shiftCode }
+// Doc id is deterministic so writing the same (user, date) always replaces the entry.
+
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  query,
+  where,
+  onSnapshot,
+  Unsubscribe,
+} from 'firebase/firestore';
+import { db } from './firebase';
 import { addLog } from './logger';
 
 export interface ScheduleEntry {
@@ -6,74 +21,70 @@ export interface ScheduleEntry {
   shiftCode: string;
 }
 
-function getKey() {
-  return 'security_schedules';
-}
-
-export function getAllSchedules(): ScheduleEntry[] {
-  const stored = localStorage.getItem(getKey());
-  return stored ? JSON.parse(stored) : [];
-}
-
-function saveSchedules(entries: ScheduleEntry[]) {
-  localStorage.setItem(getKey(), JSON.stringify(entries));
-}
+const COL = 'schedules';
+const docId = (userId: string, date: string) => `${userId}_${date}`;
 
 /** Returns true if the month is in the past (read-only) */
 export function isMonthLocked(year: number, month: number): boolean {
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-indexed
+  const currentMonth = now.getMonth();
   return year < currentYear || (year === currentYear && month < currentMonth);
 }
 
-/** Set or replace a schedule entry for a user on a date */
-export function setSchedule(userId: string, date: string, shiftCode: string): boolean {
+/** Set or replace a schedule entry */
+export async function setSchedule(userId: string, date: string, shiftCode: string): Promise<boolean> {
   const [yearStr, monthStr] = date.split('-');
   if (isMonthLocked(parseInt(yearStr), parseInt(monthStr) - 1)) {
-    addLog('error', `Modification refusée: le mois ${monthStr}/${yearStr} est verrouillé`);
+    addLog('error', `Modification refusée: mois ${monthStr}/${yearStr} verrouillé`);
     return false;
   }
-
-  const all = getAllSchedules();
-  const idx = all.findIndex(e => e.userId === userId && e.date === date);
-
-  if (idx >= 0) {
-    all[idx].shiftCode = shiftCode;
-    addLog('info', `Horaire modifié: ${date} → ${shiftCode}`);
-  } else {
-    all.push({ userId, date, shiftCode });
-    addLog('info', `Horaire ajouté: ${date} → ${shiftCode}`);
+  try {
+    await setDoc(doc(db, COL, docId(userId, date)), { userId, date, shiftCode });
+    addLog('info', `Horaire enregistré: ${date} → ${shiftCode}`);
+    return true;
+  } catch (e: any) {
+    addLog('error', `Erreur enregistrement horaire: ${e?.message}`);
+    return false;
   }
-
-  saveSchedules(all);
-  return true;
 }
 
 /** Remove a schedule entry */
-export function removeSchedule(userId: string, date: string): boolean {
+export async function removeSchedule(userId: string, date: string): Promise<boolean> {
   const [yearStr, monthStr] = date.split('-');
   if (isMonthLocked(parseInt(yearStr), parseInt(monthStr) - 1)) {
     addLog('error', `Suppression refusée: mois verrouillé`);
     return false;
   }
-
-  const all = getAllSchedules();
-  const filtered = all.filter(e => !(e.userId === userId && e.date === date));
-  if (filtered.length === all.length) return false;
-  saveSchedules(filtered);
-  addLog('info', `Horaire supprimé: ${date}`);
-  return true;
+  try {
+    await deleteDoc(doc(db, COL, docId(userId, date)));
+    addLog('info', `Horaire supprimé: ${date}`);
+    return true;
+  } catch (e: any) {
+    addLog('error', `Erreur suppression horaire: ${e?.message}`);
+    return false;
+  }
 }
 
-/** Get schedules for a user in a given month */
-export function getUserMonthSchedules(userId: string, year: number, month: number): ScheduleEntry[] {
+/**
+ * Subscribe to all schedules of a given month (string-prefix filter on the `date` field).
+ * Single Firestore listener — the cache & onSnapshot diff handle subsequent changes.
+ */
+export function subscribeMonthSchedules(
+  year: number,
+  month: number,
+  cb: (entries: ScheduleEntry[]) => void
+): Unsubscribe {
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-  return getAllSchedules().filter(e => e.userId === userId && e.date.startsWith(prefix));
-}
-
-/** Get all schedules for a given month */
-export function getMonthSchedules(year: number, month: number): ScheduleEntry[] {
-  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-  return getAllSchedules().filter(e => e.date.startsWith(prefix));
+  const end = `${prefix}-32`; // safe upper bound (any date in the month is < "...-32")
+  const q = query(
+    collection(db, COL),
+    where('date', '>=', `${prefix}-00`),
+    where('date', '<', end)
+  );
+  return onSnapshot(
+    q,
+    snap => cb(snap.docs.map(d => d.data() as ScheduleEntry)),
+    err => addLog('error', `Erreur lecture planning: ${err.message}`)
+  );
 }

@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
-import { getMonthSchedules, isMonthLocked } from '@/lib/scheduleStore';
+import { isMonthLocked } from '@/lib/scheduleStore';
+import { useMonthSchedules } from '@/hooks/useMonthSchedules';
 import { getShiftByCode, getShiftClass, SHIFT_CODES } from '@/config/shiftCodes';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
@@ -12,22 +13,12 @@ const PlanningPage = () => {
   const [month, setMonth] = useState(new Date().getMonth());
 
   const locked = isMonthLocked(year, month);
-
-  // Users to display: admin sees all, agent sees self
   const visibleUsers = isAdmin ? users : users.filter(u => u.id === user?.id);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  const schedules = useMemo(() => getMonthSchedules(year, month), [year, month]);
-
-  // Force re-render when navigating back from saisie
-  const [, setTick] = useState(0);
-  React.useEffect(() => {
-    const handler = () => setTick(t => t + 1);
-    window.addEventListener('focus', handler);
-    return () => window.removeEventListener('focus', handler);
-  }, []);
+  const { entries: schedules } = useMonthSchedules(year, month);
 
   const getEntry = (userId: string, day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -36,7 +27,6 @@ const PlanningPage = () => {
 
   const calcWeeklyHours = (userId: string) => {
     const userSchedules = schedules.filter(s => s.userId === userId);
-    // Group by ISO week
     const weeks: Record<number, number> = {};
     userSchedules.forEach(s => {
       const d = new Date(s.date);
@@ -47,11 +37,10 @@ const PlanningPage = () => {
     return weeks;
   };
 
-  const totalHours = (userId: string) => {
-    return schedules
+  const totalHours = (userId: string) =>
+    schedules
       .filter(s => s.userId === userId)
       .reduce((sum, s) => sum + (getShiftByCode(s.shiftCode)?.hours || 0), 0);
-  };
 
   const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
   const dayNames = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -68,7 +57,6 @@ const PlanningPage = () => {
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Planning</h1>
@@ -83,7 +71,6 @@ const PlanningPage = () => {
           </div>
         </div>
 
-        {/* Legend */}
         <div className="flex flex-wrap gap-2 text-xs">
           {SHIFT_CODES.map(s => (
             <span key={s.code} className={`px-2 py-1 rounded border ${getShiftClass(s.code)}`}>
@@ -92,7 +79,6 @@ const PlanningPage = () => {
           ))}
         </div>
 
-        {/* Grid */}
         <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-xs">
             <thead>
@@ -139,7 +125,6 @@ const PlanningPage = () => {
           </table>
         </div>
 
-        {/* Weekly hours summary */}
         <div className="space-y-2">
           <h2 className="text-lg font-semibold">Heures par semaine</h2>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
