@@ -13,7 +13,7 @@ export function getLogs(): LogEntry[] {
 export function addLog(level: LogEntry['level'], message: string) {
   const logs = getLogs();
   const entry: LogEntry = {
-    id: crypto.randomUUID(),
+    id: self.crypto?.randomUUID?.() ?? cryptoFallback(),
     timestamp: new Date().toISOString(),
     level,
     message,
@@ -25,4 +25,10 @@ export function addLog(level: LogEntry['level'], message: string) {
 
 export function clearLogs() {
   localStorage.setItem('security_logs', JSON.stringify([]));
+}
+
+function cryptoFallback() {
+  return 'xxxx-xxxx-xxxx'.replace(/[x]/g, () =>
+    (Math.random() * 16 | 0).toString(16)
+  );
 }
