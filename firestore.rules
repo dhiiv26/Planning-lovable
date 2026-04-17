@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: get the role of the currently authenticated user
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin()    { return isSignedIn() && userRole() == 'admin'; }
+    function isSelf(uid)  { return isSignedIn() && request.auth.uid == uid; }
+
+    // ---- users/{uid} ----
+    match /users/{uid} {
+      // Anyone signed in can read the user list (needed to display names in the planning).
+      allow read: if isSignedIn();
+
+      // Only the owner can create their own profile (auto-creation on first login).
+      // Admins can create/update/delete any profile.
+      allow create: if isSelf(uid) || isAdmin();
+      allow update: if isAdmin() || (isSelf(uid) && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // ---- schedules/{userId}_{date} ----
+    match /schedules/{docId} {
+      allow read: if isSignedIn();
+      // Write only your own schedules — or any if admin.
+      allow write: if isAdmin() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+  }
+}
