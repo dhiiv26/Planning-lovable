@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import { SHIFT_CODES, getShiftByCode, getShiftClass } from '@/config/shiftCodes';
-import { getUserMonthSchedules, setSchedule, removeSchedule, isMonthLocked } from '@/lib/scheduleStore';
+import { setSchedule, removeSchedule, isMonthLocked } from '@/lib/scheduleStore';
+import { useMonthSchedules } from '@/hooks/useMonthSchedules';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,7 +20,6 @@ const SaisiePage = () => {
   const [selectedUserId, setSelectedUserId] = useState(user?.id || '');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedShift, setSelectedShift] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const targetUserId = isAdmin ? selectedUserId : user?.id || '';
 
@@ -28,32 +28,29 @@ const SaisiePage = () => {
   const viewMonth = selectedDate?.getMonth() ?? now.getMonth();
   const locked = isMonthLocked(viewYear, viewMonth);
 
+  // Realtime subscription — single listener per month, no polling
+  const { entries: monthEntries } = useMonthSchedules(viewYear, viewMonth);
   const entries = useMemo(
-    () => getUserMonthSchedules(targetUserId, viewYear, viewMonth),
-    [targetUserId, viewYear, viewMonth, refreshKey]
+    () => monthEntries.filter(e => e.userId === targetUserId),
+    [monthEntries, targetUserId]
   );
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!selectedDate || !selectedShift || !targetUserId) return;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const ok = setSchedule(targetUserId, dateStr, selectedShift);
+    const ok = await setSchedule(targetUserId, dateStr, selectedShift);
     if (ok) {
       toast.success(`Horaire ${selectedShift} ajouté pour le ${format(selectedDate, 'dd/MM/yyyy')}`);
-      setRefreshKey(k => k + 1);
       setSelectedShift('');
     } else {
-      toast.error('Impossible de modifier ce mois (verrouillé)');
+      toast.error('Impossible de modifier ce mois (verrouillé ou erreur réseau)');
     }
   };
 
-  const handleRemove = (date: string) => {
-    const ok = removeSchedule(targetUserId, date);
-    if (ok) {
-      toast.success('Horaire supprimé');
-      setRefreshKey(k => k + 1);
-    } else {
-      toast.error('Suppression impossible');
-    }
+  const handleRemove = async (date: string) => {
+    const ok = await removeSchedule(targetUserId, date);
+    if (ok) toast.success('Horaire supprimé');
+    else toast.error('Suppression impossible');
   };
 
   return (
@@ -73,7 +70,6 @@ const SaisiePage = () => {
             <CardTitle className="text-lg">Nouvel horaire</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Admin: user selector */}
             {isAdmin && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Agent</label>
@@ -88,7 +84,6 @@ const SaisiePage = () => {
               </div>
             )}
 
-            {/* Date picker */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Date</label>
               <Popover>
@@ -110,7 +105,6 @@ const SaisiePage = () => {
               </Popover>
             </div>
 
-            {/* Shift selector */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Code horaire</label>
               <Select value={selectedShift} onValueChange={setSelectedShift}>
@@ -134,7 +128,6 @@ const SaisiePage = () => {
           </CardContent>
         </Card>
 
-        {/* Current month entries */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">

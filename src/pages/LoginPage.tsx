@@ -14,12 +14,11 @@ const LoginPage = () => {
 
   if (user) return <Navigate to="/planning" replace />;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!login(email, password)) {
-      setError('Email ou mot de passe incorrect');
-    }
+    const ok = await login(email, password);
+    if (!ok) setError('Email ou mot de passe incorrect');
   };
 
   return (
@@ -50,10 +49,8 @@ const LoginPage = () => {
             </div>
             <Button type="submit" className="w-full">Se connecter</Button>
           </form>
-          <div className="mt-6 rounded-md bg-muted p-3 text-xs text-muted-foreground space-y-1">
-            <p className="font-medium">Comptes de test :</p>
-            <p>Admin : admin@securite.fr / admin123</p>
-            <p>Agent : agent1@securite.fr / agent123</p>
+          <div className="mt-6 rounded-md bg-muted p-3 text-xs text-muted-foreground">
+            <p>Authentification Firebase. Créez votre premier compte dans la console Firebase, puis ajoutez le document <code>users/{`{uid}`}</code> avec <code>role: "admin"</code>.</p>
           </div>
         </CardContent>
       </Card>

@@ -8,16 +8,6 @@ import {
   User as FbUser,
 } from 'firebase/auth';
 import {
-  doc,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  collection,
-  onSnapshot,
-} from 'firestore' === '' ? null as any : 'firebase/firestore' as any; // placeholder, replaced below
-
-// Re-import properly
-import {
   doc as fsDoc,
   getDoc as fsGetDoc,
   setDoc as fsSetDoc,
