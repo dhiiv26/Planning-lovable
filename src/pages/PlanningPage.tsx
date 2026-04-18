@@ -13,7 +13,7 @@ const PlanningPage = () => {
   const [month, setMonth] = useState(new Date().getMonth());
 
   const locked = isMonthLocked(year, month);
-  const visibleUsers = users;
+  const visibleUsers = users.length ? users : [];
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
