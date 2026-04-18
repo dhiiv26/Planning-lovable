@@ -13,20 +13,24 @@ const PlanningPage = () => {
   const [month, setMonth] = useState(new Date().getMonth());
 
   const locked = isMonthLocked(year, month);
-  const visibleUsers = isAdmin ? users : users.filter(u => u.id === user?.id);
+  const visibleUsers = users;
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  const { entries: schedules } = useMonthSchedules(year, month);
+  const { entries } = useMonthSchedules(year, month);
+
+  const schedules = entries;
 
   const getEntry = (userId: string, day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return schedules.find(e => e.userId === userId && e.date === dateStr);
-  };
-
+  const dateStr = ${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')};
+  return schedules.find(e =>
+    e.userId === userId && e.date === dateStr
+  );
+};
   const calcWeeklyHours = (userId: string) => {
     const userSchedules = schedules.filter(s => s.userId === userId);
+
     const weeks: Record<number, number> = {};
     userSchedules.forEach(s => {
       const d = new Date(s.date);
