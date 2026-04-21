@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 30% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 10%;
+
+    --primary: 220 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 220 30% 15%;
+
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 220 15% 90%;
+    --accent-foreground: 220 30% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
+    --ring: 220 70% 50%;
+
+    --radius: 0.5rem;
+
+    /* Shift color tokens */
+    --shift-night: 220 80% 55%;
+    --shift-night-bg: 220 80% 95%;
+    --shift-day: 45 90% 50%;
+    --shift-day-bg: 45 90% 94%;
+    --shift-rest: 220 10% 60%;
+    --shift-rest-bg: 220 10% 94%;
+    --shift-formation: 160 60% 45%;
+    --shift-formation-bg: 160 60% 93%;
+    --shift-long: 30 80% 55%;
+    --shift-long-bg: 30 80% 93%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .shift-night {
+    background-color: hsl(var(--shift-night-bg));
+    color: hsl(var(--shift-night));
+    border-color: hsl(var(--shift-night));
+  }
+  .shift-day {
+    background-color: hsl(var(--shift-day-bg));
+    color: hsl(220 30% 15%);
+    border-color: hsl(var(--shift-day));
+  }
+  .shift-rest {
+    background-color: hsl(var(--shift-rest-bg));
+    color: hsl(var(--shift-rest));
+    border-color: hsl(var(--shift-rest));
+  }
+  .shift-formation {
+    background-color: hsl(var(--shift-formation-bg));
+    color: hsl(var(--shift-formation));
+    border-color: hsl(var(--shift-formation));
+  }
+  .shift-long {
+    background-color: hsl(var(--shift-long-bg));
+    color: hsl(var(--shift-long));
+    border-color: hsl(var(--shift-long));
+  }
+}
