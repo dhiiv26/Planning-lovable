@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Planning</string>
+    <string name="title_activity_main">Planning</string>
+    <string name="package_name">com.adrien.planning</string>
+    <string name="custom_url_scheme">com.adrien.planning</string>
+</resources>
