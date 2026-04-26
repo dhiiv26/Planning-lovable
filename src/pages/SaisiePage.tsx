@@ -2,50 +2,93 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import { useShifts, shiftStyle } from '@/hooks/useShifts';
-import { setSchedule, removeSchedule, isMonthLocked } from '@/lib/scheduleStore';
+import { setSchedulesBulk, removeSchedule, isMonthLocked } from '@/lib/scheduleStore';
 import { useMonthSchedules } from '@/hooks/useMonthSchedules';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Trash2, Lock } from 'lucide-react';
-import { format } from 'date-fns';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Trash2, Lock, CalendarRange, X } from 'lucide-react';
+import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+
+const toKey = (d: Date) => format(d, 'yyyy-MM-dd');
 
 const SaisiePage = () => {
   const { user, users, isAdmin } = useAuth();
   const { shifts, byCode } = useShifts();
   const [selectedUserId, setSelectedUserId] = useState(user?.id || '');
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [selectedShift, setSelectedShift] = useState('');
+  const [confirmConflicts, setConfirmConflicts] = useState<string[] | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
   const targetUserId = isAdmin ? selectedUserId : user?.id || '';
 
-  const now = new Date();
-  const viewYear = selectedDate?.getFullYear() || now.getFullYear();
-  const viewMonth = selectedDate?.getMonth() ?? now.getMonth();
+  const viewYear = calendarMonth.getFullYear();
+  const viewMonth = calendarMonth.getMonth();
   const locked = isMonthLocked(viewYear, viewMonth);
 
-  // Realtime subscription — single listener per month, no polling
+  // Realtime subscription — single listener per month
   const { entries: monthEntries } = useMonthSchedules(viewYear, viewMonth);
   const entries = useMemo(
     () => monthEntries.filter(e => e.userId === targetUserId),
     [monthEntries, targetUserId]
   );
+  const entriesByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    entries.forEach(e => m.set(e.date, e.shiftCode));
+    return m;
+  }, [entries]);
 
-  const handleAdd = async () => {
-    if (!selectedDate || !selectedShift || !targetUserId) return;
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const ok = await setSchedule(targetUserId, dateStr, selectedShift);
-    if (ok) {
-      toast.success(`Horaire ${selectedShift} ajouté pour le ${format(selectedDate, 'dd/MM/yyyy')}`);
+  const sortedSelection = useMemo(
+    () => [...selectedDates].sort((a, b) => a.getTime() - b.getTime()),
+    [selectedDates]
+  );
+
+  const clearSelection = () => setSelectedDates([]);
+
+  const selectCurrentWeek = () => {
+    const ref = selectedDates[selectedDates.length - 1] || calendarMonth || new Date();
+    const monday = startOfWeek(ref, { weekStartsOn: 1 });
+    const week = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+    setSelectedDates(week);
+  };
+
+  const performApply = async (dates: string[]) => {
+    if (!targetUserId || !selectedShift || dates.length === 0) return;
+    const { ok, failed } = await setSchedulesBulk(targetUserId, dates, selectedShift);
+    if (failed === 0) toast.success(`${ok} jour${ok > 1 ? 's' : ''} mis à jour`);
+    else toast.error(`${failed} échec(s) — mois verrouillé ou erreur réseau`);
+    if (ok > 0) {
+      setSelectedDates([]);
       setSelectedShift('');
-    } else {
-      toast.error('Impossible de modifier ce mois (verrouillé ou erreur réseau)');
     }
+  };
+
+  const handleApply = async () => {
+    if (!selectedShift || sortedSelection.length === 0 || !targetUserId) return;
+    const dateStrs = sortedSelection.map(toKey);
+    const conflicts = dateStrs.filter(d => {
+      const existing = entriesByDate.get(d);
+      return existing && existing !== selectedShift;
+    });
+    if (conflicts.length > 0) {
+      setConfirmConflicts(dateStrs);
+      return;
+    }
+    await performApply(dateStrs);
   };
 
   const handleRemove = async (date: string) => {
@@ -62,13 +105,13 @@ const SaisiePage = () => {
           <p className="text-sm text-muted-foreground">
             {locked ? (
               <span className="flex items-center gap-1 text-destructive"><Lock className="h-3 w-3" /> Ce mois est en lecture seule</span>
-            ) : 'Sélectionnez une date et un code horaire'}
+            ) : 'Sélectionnez un ou plusieurs jours, puis appliquez un horaire'}
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Nouvel horaire</CardTitle>
+            <CardTitle className="text-lg">Sélection des jours</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {isAdmin && (
@@ -78,36 +121,75 @@ const SaisiePage = () => {
                   <SelectTrigger><SelectValue placeholder="Choisir un agent" /></SelectTrigger>
                   <SelectContent>
                     {users.map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left", !selectedDate && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, 'PPP', { locale: fr }) : 'Choisir une date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    locale={fr}
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+            <div className="flex justify-center">
+              <Calendar
+                mode="multiple"
+                selected={selectedDates}
+                onSelect={(dates) => setSelectedDates(dates || [])}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                locale={fr}
+                weekStartsOn={1}
+                className="p-3 pointer-events-auto rounded-md border"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={selectCurrentWeek}>
+                <CalendarRange className="h-4 w-4" /> Sélectionner la semaine
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={clearSelection}
+                disabled={selectedDates.length === 0}
+              >
+                <X className="h-4 w-4" /> Effacer
+              </Button>
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Jours sélectionnés ({sortedSelection.length})
+              </p>
+              {sortedSelection.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucun jour sélectionné</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {sortedSelection.map(d => {
+                    const k = toKey(d);
+                    const existing = entriesByDate.get(k);
+                    return (
+                      <span
+                        key={k}
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs"
+                      >
+                        {format(d, 'dd/MM', { locale: fr })}
+                        {existing && (
+                          <span
+                            className="ml-1 rounded px-1 text-[10px] font-semibold border"
+                            style={shiftStyle(byCode.get(existing)?.color)}
+                          >
+                            {existing}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Code horaire</label>
+              <label className="text-sm font-medium">Code horaire à appliquer</label>
               <Select value={selectedShift} onValueChange={setSelectedShift}>
                 <SelectTrigger><SelectValue placeholder="Choisir un horaire" /></SelectTrigger>
                 <SelectContent>
@@ -123,8 +205,12 @@ const SaisiePage = () => {
               </Select>
             </div>
 
-            <Button onClick={handleAdd} disabled={!selectedDate || !selectedShift || !targetUserId || locked} className="w-full">
-              Enregistrer
+            <Button
+              onClick={handleApply}
+              disabled={!selectedShift || sortedSelection.length === 0 || !targetUserId || locked}
+              className="w-full"
+            >
+              Appliquer à {sortedSelection.length} jour{sortedSelection.length > 1 ? 's' : ''}
             </Button>
           </CardContent>
         </Card>
@@ -168,6 +254,38 @@ const SaisiePage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!confirmConflicts} onOpenChange={(o) => { if (!o) setConfirmConflicts(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remplacer les horaires existants ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmConflicts && (
+                <>
+                  {confirmConflicts.filter(d => {
+                    const existing = entriesByDate.get(d);
+                    return existing && existing !== selectedShift;
+                  }).length} jour(s) ont déjà un horaire différent. Voulez-vous les remplacer par <strong>{selectedShift}</strong> ?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (confirmConflicts) {
+                  const dates = confirmConflicts;
+                  setConfirmConflicts(null);
+                  await performApply(dates);
+                }
+              }}
+            >
+              Remplacer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };

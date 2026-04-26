@@ -4,18 +4,20 @@ import {
   signInWithEmailAndPassword,
   signOut,
   createUserWithEmailAndPassword,
-  deleteUser as deleteAuthUser,
+  sendPasswordResetEmail,
   User as FbUser,
 } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import {
   doc as fsDoc,
   getDoc as fsGetDoc,
   setDoc as fsSetDoc,
+  updateDoc as fsUpdateDoc,
   deleteDoc as fsDeleteDoc,
   collection as fsCollection,
   onSnapshot as fsOnSnapshot,
 } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, functions } from '@/lib/firebase';
 import { addLog } from '@/lib/logger';
 
 export type UserRole = 'admin' | 'agent';
@@ -35,6 +37,9 @@ interface AuthContextType {
   logout: () => Promise<void>;
   addUser: (email: string, name: string, password: string, role: UserRole) => Promise<boolean>;
   removeUser: (id: string) => Promise<boolean>;
+  updateUserRole: (id: string, role: UserRole) => Promise<boolean>;
+  sendPasswordReset: (email: string) => Promise<boolean>;
+  updateUserEmail: (uid: string, newEmail: string) => Promise<boolean>;
   isAdmin: boolean;
 }
 
@@ -175,6 +180,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user]
   );
 
+  const updateUserRole = useCallback(
+    async (id: string, role: UserRole): Promise<boolean> => {
+      if (id === user?.id && role !== 'admin') {
+        addLog('error', 'Impossible de retirer votre propre rôle admin');
+        return false;
+      }
+      try {
+        await fsUpdateDoc(fsDoc(db, 'users', id), { role });
+        addLog('info', `Rôle mis à jour pour ${id} → ${role}`);
+        return true;
+      } catch (e: any) {
+        addLog('error', `Mise à jour du rôle échouée: ${e?.message}`);
+        return false;
+      }
+    },
+    [user]
+  );
+
+  const sendPasswordReset = useCallback(async (email: string): Promise<boolean> => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      addLog('info', `Email de réinitialisation envoyé à ${email}`);
+      return true;
+    } catch (e: any) {
+      addLog('error', `Reset mot de passe échoué pour ${email}: ${e?.code || e?.message}`);
+      return false;
+    }
+  }, []);
+
+  const updateUserEmail = useCallback(async (uid: string, newEmail: string): Promise<boolean> => {
+    try {
+      const fn = httpsCallable<{ uid: string; newEmail: string }, { success: boolean }>(
+        functions,
+        'updateUserEmail'
+      );
+      await fn({ uid, newEmail });
+      addLog('info', `Email mis à jour pour ${uid} → ${newEmail}`);
+      return true;
+    } catch (e: any) {
+      addLog('error', `Mise à jour email échouée: ${e?.code || e?.message}`);
+      return false;
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -185,6 +234,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         addUser,
         removeUser,
+        updateUserRole,
+        sendPasswordReset,
+        updateUserEmail,
         isAdmin: user?.role === 'admin',
       }}
     >

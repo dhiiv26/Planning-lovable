@@ -1,17 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, UserRole } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Save, Pencil, X, GripVertical } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Trash2, Save, Pencil, X, GripVertical, ShieldCheck, ShieldOff, Mail, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useShifts, shiftStyle } from '@/hooks/useShifts';
 import { upsertShift, deleteShift, defaultColorFor, DynamicShift } from '@/lib/shiftsStore';
 import { useDisplaySettings } from '@/hooks/useDisplaySettings';
 import { applyAgentOrder, saveAgentOrder } from '@/lib/displayStore';
+import { useSalarySettings } from '@/hooks/useSalarySettings';
+import { saveSalarySettings, SalarySettings } from '@/lib/salaryStore';
 import {
   DndContext,
   PointerSensor,
@@ -95,9 +98,11 @@ const MaintenancePage = () => {
         </div>
 
         <Tabs defaultValue="shifts" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="shifts">Horaires</TabsTrigger>
             <TabsTrigger value="display">Affichage</TabsTrigger>
+            <TabsTrigger value="users">Utilisateurs</TabsTrigger>
+            <TabsTrigger value="salary">Salaire</TabsTrigger>
           </TabsList>
 
           {/* ---- Onglet Horaires ---- */}
@@ -203,9 +208,149 @@ const MaintenancePage = () => {
           <TabsContent value="display" className="space-y-4 mt-4">
             <AgentOrderEditor />
           </TabsContent>
+
+          {/* ---- Onglet Utilisateurs (rôles) ---- */}
+          <TabsContent value="users" className="space-y-4 mt-4">
+            <UserRolesEditor />
+          </TabsContent>
+
+          {/* ---- Onglet Salaire ---- */}
+          <TabsContent value="salary" className="space-y-4 mt-4">
+            <SalaryEditor />
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
+  );
+};
+
+// =================== Sous-composant : gestion des rôles ===================
+const UserRolesEditor: React.FC = () => {
+  const { user, users, updateUserRole, sendPasswordReset, updateUserEmail } = useAuth();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState<Record<string, string>>({});
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+
+  const handleChange = async (id: string, role: UserRole) => {
+    setBusy(id);
+    const ok = await updateUserRole(id, role);
+    setBusy(null);
+    if (ok) toast.success('Rôle mis à jour');
+    else toast.error('Modification impossible');
+  };
+
+  const handleResetPassword = async (email: string) => {
+    if (!confirm(`Envoyer un email de réinitialisation à ${email} ?`)) return;
+    const ok = await sendPasswordReset(email);
+    if (ok) toast.success('Email de réinitialisation envoyé');
+    else toast.error("Échec de l'envoi");
+  };
+
+  const handleSaveEmail = async (uid: string) => {
+    const newEmail = (emailDraft[uid] || '').trim();
+    if (!/^\S+@\S+\.\S+$/.test(newEmail)) return toast.error('Email invalide');
+    setBusy(uid);
+    const ok = await updateUserEmail(uid, newEmail);
+    setBusy(null);
+    if (ok) {
+      toast.success('Email mis à jour');
+      setEditingEmail(null);
+    } else {
+      toast.error('Échec — Cloud Function déployée ?');
+    }
+  };
+
+  const sorted = [...users].sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Utilisateurs ({sorted.length})</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Rôles, réinitialisation de mot de passe et modification d'email. Vous ne pouvez pas
+          retirer votre propre rôle admin.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {sorted.map(u => {
+          const isSelf = u.id === user?.id;
+          const isEditingThis = editingEmail === u.id;
+          return (
+            <div key={u.id} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate flex items-center gap-2">
+                    {u.role === 'admin' ? (
+                      <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                    ) : (
+                      <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
+                    {u.name}
+                    {isSelf && <span className="text-xs text-muted-foreground">(vous)</span>}
+                  </p>
+                  {!isEditingThis && (
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                  )}
+                </div>
+                <Select
+                  value={u.role}
+                  onValueChange={(v) => handleChange(u.id, v as UserRole)}
+                  disabled={busy === u.id || (isSelf && u.role === 'admin')}
+                >
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isEditingThis && (
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={emailDraft[u.id] ?? u.email}
+                    onChange={e => setEmailDraft({ ...emailDraft, [u.id]: e.target.value })}
+                    placeholder="nouveau@email.fr"
+                    className="h-8"
+                  />
+                  <Button size="sm" onClick={() => handleSaveEmail(u.id)} disabled={busy === u.id}>
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingEmail(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleResetPassword(u.email)}
+                  className="h-8 text-xs"
+                >
+                  <KeyRound className="h-3 w-3" /> Reset mot de passe
+                </Button>
+                {!isEditingThis && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingEmail(u.id);
+                      setEmailDraft({ ...emailDraft, [u.id]: u.email });
+                    }}
+                    className="h-8 text-xs"
+                  >
+                    <Mail className="h-3 w-3" /> Modifier email
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -309,9 +454,111 @@ const SortableAgent: React.FC<{ id: string; name: string; role: string }> = ({ i
       </button>
       <div className="min-w-0 flex-1">
         <p className="font-medium truncate">{name}</p>
-        <p className="text-xs text-muted-foreground capitalize">{role}</p>
       </div>
     </li>
+  );
+};
+
+// =================== Sous-composant : paramètres salaire ===================
+const SalaryEditor: React.FC = () => {
+  const { settings, loading } = useSalarySettings();
+  const [draft, setDraft] = useState<SalarySettings>(settings);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setDraft(settings); }, [settings]);
+
+  const update = (k: keyof SalarySettings, v: number) => setDraft(d => ({ ...d, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    const ok = await saveSalarySettings(draft);
+    setSaving(false);
+    if (ok) toast.success('Paramètres salaire enregistrés');
+    else toast.error('Échec — vérifiez vos droits');
+  };
+
+  if (loading) return <p className="text-sm text-muted-foreground">Chargement…</p>;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Heures supplémentaires (cycle)</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label="Seuil 1 (CET, h)">
+            <Input type="number" step="0.5" value={draft.threshold1} onChange={e => update('threshold1', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Seuil 2 (limite +25%, h)">
+            <Input type="number" step="0.5" value={draft.threshold2} onChange={e => update('threshold2', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Taux HS tranche 1 (ex: 1.25)">
+            <Input type="number" step="0.05" value={draft.overtimeRate1} onChange={e => update('overtimeRate1', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Taux HS tranche 2 (ex: 1.50)">
+            <Input type="number" step="0.05" value={draft.overtimeRate2} onChange={e => update('overtimeRate2', parseFloat(e.target.value) || 0)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Primes fixes (€)</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label="Prime habillage (1×/mois)">
+            <Input type="number" step="0.01" value={draft.primeHabillage} onChange={e => update('primeHabillage', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Prime carburant (1×/mois)">
+            <Input type="number" step="0.01" value={draft.primeCarburant} onChange={e => update('primeCarburant', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Prime panier (par jour)">
+            <Input type="number" step="0.01" value={draft.primePanier} onChange={e => update('primePanier', parseFloat(e.target.value) || 0)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Primes de remplacement (€)</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label="Remplacement semaine">
+            <Input type="number" step="0.01" value={draft.remplacementSemaine} onChange={e => update('remplacementSemaine', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Remplacement week-end">
+            <Input type="number" step="0.01" value={draft.remplacementWeekend} onChange={e => update('remplacementWeekend', parseFloat(e.target.value) || 0)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Majorations (%)</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          <Field label="Nuit (22h-06h)">
+            <Input type="number" step="1" value={draft.majorationNuit} onChange={e => update('majorationNuit', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Dimanche">
+            <Input type="number" step="1" value={draft.majorationDimanche} onChange={e => update('majorationDimanche', parseFloat(e.target.value) || 0)} />
+          </Field>
+          <Field label="Férié (100 = ×2)">
+            <Input type="number" step="1" value={draft.majorationFerie} onChange={e => update('majorationFerie', parseFloat(e.target.value) || 0)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Conversion Brut → Net</CardTitle>
+          <p className="text-xs text-muted-foreground">Coefficient appliqué au brut pour estimer le net (ex: 0.78 = 78%).</p>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label="Coefficient net (0 à 1)">
+            <Input type="number" step="0.01" min="0" max="1" value={draft.netCoefficient} onChange={e => update('netCoefficient', parseFloat(e.target.value) || 0)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving}>
+          <Save className="h-4 w-4" /> {saving ? 'Enregistrement…' : 'Enregistrer les paramètres'}
+        </Button>
+      </div>
+    </div>
   );
 };
 
