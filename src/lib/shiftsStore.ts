@@ -31,6 +31,7 @@ const CATEGORY_COLORS: Record<StaticShift['category'], string> = {
   rest: '#9ca3af',
   formation: '#10b981',
   long: '#f97316',
+  absence: '#ef4444',
 };
 
 export function defaultColorFor(category?: StaticShift['category']): string {
@@ -40,7 +41,25 @@ export function defaultColorFor(category?: StaticShift['category']): string {
 export async function seedShiftsIfEmpty(): Promise<void> {
   try {
     const snap = await getDocs(collection(db, COL));
-    if (!snap.empty) return;
+    if (!snap.empty) {
+      // Garantit que ABS existe (pour les bases déjà initialisées)
+      const hasAbs = snap.docs.some(d => d.id === 'ABS');
+      if (!hasAbs) {
+        const abs = SHIFT_CODES.find(s => s.code === 'ABS');
+        if (abs) {
+          await setDoc(doc(db, COL, 'ABS'), {
+            code: abs.code,
+            label: abs.label,
+            hours: abs.hours,
+            time: abs.time,
+            category: abs.category,
+            color: defaultColorFor(abs.category),
+          } as DynamicShift);
+          addLog('info', 'Shift ABS ajouté automatiquement');
+        }
+      }
+      return;
+    }
     await Promise.all(
       SHIFT_CODES.map(s =>
         setDoc(doc(db, COL, s.code), {

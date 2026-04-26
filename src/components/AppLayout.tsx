@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, Users, Activity, LogOut, Menu, X, Wrench } from 'lucide-react';
+import { Calendar, Clock, Users, Activity, LogOut, Menu, X, Wrench, Wallet, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 import logo from '@/assets/logo.jpeg';
 
@@ -14,6 +14,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const links = [
     { to: '/planning', label: 'Planning', icon: Calendar },
     { to: '/saisie', label: 'Saisie', icon: Clock },
+    { to: '/messages', label: 'Messages', icon: MessageSquare },
+    { to: '/salaire', label: 'Estimation salaire', icon: Wallet },
     ...(isAdmin ? [{ to: '/utilisateurs', label: 'Utilisateurs', icon: Users }] : []),
     ...(isAdmin ? [{ to: '/maintenance', label: 'Maintenance', icon: Wrench }] : []),
     { to: '/diagnostic', label: 'Diagnostic', icon: Activity },
@@ -59,7 +61,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium leading-none">{user?.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
             </div>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />

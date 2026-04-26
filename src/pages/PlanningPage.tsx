@@ -7,8 +7,19 @@ import { useShifts, shiftStyle } from '@/hooks/useShifts';
 import { useDisplaySettings } from '@/hooks/useDisplaySettings';
 import { applyAgentOrder } from '@/lib/displayStore';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Lock, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lock, Users, FileDown } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { exportPlanningPDF } from '@/lib/planningPdf';
+import { fetchUserSchedulesRange } from '@/lib/scheduleQueries';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { toast } from 'sonner';
 
 type ViewMode = 'all' | 'mine' | 'today';
 
@@ -101,6 +112,34 @@ const PlanningPage = () => {
     else setMonth(m => m + 1);
   };
 
+  const handleExport = async (which: 'current' | 'previous') => {
+    const now = new Date();
+    let y = now.getFullYear();
+    let m = now.getMonth();
+    if (which === 'previous') {
+      if (m === 0) { m = 11; y -= 1; } else m -= 1;
+    }
+    const start = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const end = `${y}-${String(m + 1).padStart(2, '0')}-${String(new Date(y, m + 1, 0).getDate()).padStart(2, '0')}`;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'schedules'),
+        where('date', '>=', start),
+        where('date', '<=', end),
+      ));
+      const monthEntries = snap.docs.map(d => d.data() as any);
+      exportPlanningPDF({
+        year: y, month: m,
+        users: orderedUsers,
+        entries: monthEntries,
+        shiftsByCode: byCode,
+      });
+      toast.success('PDF généré');
+    } catch (e: any) {
+      toast.error(`Échec export : ${e?.message || 'erreur'}`);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-4">
@@ -112,6 +151,21 @@ const PlanningPage = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <FileDown className="h-4 w-4" /> PDF
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('current')}>
+                  Mois en cours
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('previous')}>
+                  Mois précédent
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" size="icon" onClick={prevMonth}><ChevronLeft className="h-4 w-4" /></Button>
             <span className="font-semibold min-w-[160px] text-center">{monthNames[month]} {year}</span>
             <Button variant="outline" size="icon" onClick={nextMonth}><ChevronRight className="h-4 w-4" /></Button>
@@ -206,7 +260,6 @@ const PlanningPage = () => {
                 <tr key={u.id} className="border-b hover:bg-muted/30">
                   <td className="sticky left-0 bg-card z-10 px-3 py-2 font-medium whitespace-nowrap">
                     {u.name}
-                    <span className="block text-muted-foreground text-[10px] capitalize">{u.role}</span>
                   </td>
                   {days.map(d => {
                     const entry = getEntry(u.id, d);

@@ -14,6 +14,8 @@ import PlanningPage from "@/pages/PlanningPage";
 import SaisiePage from "@/pages/SaisiePage";
 import UsersPage from "@/pages/UsersPage";
 import MaintenancePage from "@/pages/MaintenancePage";
+import SalaryPage from "@/pages/SalaryPage";
+import MessagesPage from "@/pages/MessagesPage";
 import DiagnosticPage from "@/pages/DiagnosticPage";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -36,6 +38,8 @@ const AppShell = () => {
           <Route path="/saisie" element={<SaisiePage />} />
           <Route path="/utilisateurs" element={<UsersPage />} />
           <Route path="/maintenance" element={<MaintenancePage />} />
+          <Route path="/salaire" element={<SalaryPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
           <Route path="/diagnostic" element={<DiagnosticPage />} />
         </Route>
         <Route path="/" element={<Navigate to="/planning" replace />} />
