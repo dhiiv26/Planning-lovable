@@ -49,6 +49,24 @@ export async function setSchedule(userId: string, date: string, shiftCode: strin
   }
 }
 
+/** Set or replace several schedules at once. Returns the number of successful writes. */
+export async function setSchedulesBulk(
+  userId: string,
+  dates: string[],
+  shiftCode: string
+): Promise<{ ok: number; failed: number }> {
+  let ok = 0;
+  let failed = 0;
+  await Promise.all(
+    dates.map(async date => {
+      const success = await setSchedule(userId, date, shiftCode);
+      if (success) ok++;
+      else failed++;
+    })
+  );
+  return { ok, failed };
+}
+
 /** Remove a schedule entry */
 export async function removeSchedule(userId: string, date: string): Promise<boolean> {
   const [yearStr, monthStr] = date.split('-');

@@ -74,7 +74,7 @@ const UsersPage = () => {
               <div key={u.id} className="flex items-center justify-between rounded-md border p-3">
                 <div>
                   <p className="font-medium">{u.name}</p>
-                  <p className="text-sm text-muted-foreground">{u.email} — <span className="capitalize">{u.role}</span></p>
+                  <p className="text-sm text-muted-foreground">{u.email}</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={async () => {
                   const ok = await removeUser(u.id);

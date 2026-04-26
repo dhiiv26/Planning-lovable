@@ -3,7 +3,7 @@ export interface ShiftCode {
   label: string;
   hours: number;
   time: string;
-  category: 'night' | 'day' | 'rest' | 'formation' | 'long';
+  category: 'night' | 'day' | 'rest' | 'formation' | 'long' | 'absence';
 }
 
 export const SHIFT_CODES: ShiftCode[] = [
@@ -14,9 +14,11 @@ export const SHIFT_CODES: ShiftCode[] = [
   { code: "M12", label: "Journée longue", hours: 12, time: "10:00-22:00", category: "long" },
   { code: "M8", label: "Matin", hours: 8, time: "06:00-14:00", category: "day" },
   { code: "S8", label: "Après-midi", hours: 8, time: "14:00-22:00", category: "day" },
+  { code: "CDS", label: "Chef de salle", hours: 8, time: "14:00-22:00", category: "day" },
   { code: "RS", label: "Renfort samedi", hours: 10, time: "10:00-20:00", category: "day" },
   { code: "F7", label: "Formation", hours: 7, time: "09:00-17:00", category: "formation" },
-  { code: "CP", label: "Congé payé", hours: 5.5, time: "N/A", category: "rest" },
+  { code: "CP", label: "Congé payé", hours: 5.83, time: "N/A", category: "rest" },
+  { code: "ABS", label: "Absence", hours: 0, time: "N/A", category: "absence" },
 ];
 
 export function getShiftByCode(code: string): ShiftCode | undefined {

@@ -6,6 +6,7 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 // Public web config (safe to expose — security is enforced by Firestore rules)
 const firebaseConfig = {
@@ -24,3 +25,6 @@ export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
+
+// Cloud Functions (us-central1 by default — matches functions/src/index.ts region)
+export const functions = getFunctions(app, 'us-central1');

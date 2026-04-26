@@ -18,6 +18,8 @@ service cloud.firestore {
       // Only the owner can create their own profile (auto-creation on first login).
       // Admins can create/update/delete any profile.
       allow create: if isSelf(uid) || isAdmin();
+      // L'utilisateur peut mettre à jour son profil tant qu'il ne change pas son rôle.
+      // (Cela inclut hourlyRate pour la simulation salaire.)
       allow update: if isAdmin() || (isSelf(uid) && request.resource.data.role == resource.data.role);
       allow delete: if isAdmin();
     }
@@ -42,6 +44,22 @@ service cloud.firestore {
       // Write only your own schedules — or any if admin.
       allow write: if isAdmin() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
       allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // ---- messages/{id} ---- (messagerie temporaire avec expiration)
+    match /messages/{id} {
+      // Tous les utilisateurs signés peuvent lire (filtrage client par target).
+      allow read: if isSignedIn();
+      // Création : tout utilisateur signé, en s'identifiant comme expéditeur.
+      allow create: if isSignedIn()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 1000;
+      // Suppression : l'expéditeur, un admin, ou n'importe qui pour purger un message expiré.
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.senderId == request.auth.uid)
+        || (isSignedIn() && resource.data.expiresAt < request.time);
     }
   }
 }
