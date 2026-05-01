@@ -20,6 +20,14 @@ export interface DynamicShift {
   time: string;
   color: string; // hex (#RRGGBB) — fond du badge
   category?: StaticShift['category'];
+  /** Si true, ce code génère une prime panier le jour travaillé. Par défaut: true sauf rest/absence. */
+  countForMealBonus?: boolean;
+}
+
+/** Valeur par défaut de countForMealBonus selon la catégorie. */
+export function defaultCountForMealBonus(category?: StaticShift['category']): boolean {
+  if (category === 'rest' || category === 'absence') return false;
+  return true;
 }
 
 const COL = 'shifts';
@@ -54,6 +62,7 @@ export async function seedShiftsIfEmpty(): Promise<void> {
             time: abs.time,
             category: abs.category,
             color: defaultColorFor(abs.category),
+            countForMealBonus: defaultCountForMealBonus(abs.category),
           } as DynamicShift);
           addLog('info', 'Shift ABS ajouté automatiquement');
         }
@@ -69,6 +78,7 @@ export async function seedShiftsIfEmpty(): Promise<void> {
           time: s.time,
           category: s.category,
           color: defaultColorFor(s.category),
+          countForMealBonus: defaultCountForMealBonus(s.category),
         } as DynamicShift)
       )
     );

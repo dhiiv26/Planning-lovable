@@ -15,6 +15,7 @@ import { fetchUserSchedulesRange } from '@/lib/scheduleQueries';
 import { findCycleForDate } from '@/lib/cycles';
 import { computeSalary, AbsenceOverride, ExtraReplacement } from '@/lib/salaryEngine';
 import type { ScheduleEntry } from '@/lib/scheduleStore';
+import { getHolidays } from '@/lib/holidays';
 
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -93,7 +94,7 @@ const SalaryPage: React.FC = () => {
       month,
       absences,
       replacements,
-      holidays: [],
+      holidays: getHolidays(year),
     });
   }, [user, hourlyRate, myMonthEntries, cycleEntries, byCode, settings, year, month, absences, replacements]);
 

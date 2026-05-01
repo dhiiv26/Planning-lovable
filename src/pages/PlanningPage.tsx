@@ -20,6 +20,8 @@ import { fetchUserSchedulesRange } from '@/lib/scheduleQueries';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
+import { isHoliday } from '@/lib/holidays';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type ViewMode = 'all' | 'mine' | 'today';
 
@@ -33,6 +35,7 @@ const PlanningPage = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [selectedDay, setSelectedDay] = useState<number>(today0.getDate());
   const [withMe, setWithMe] = useState(false);
+  const isMobile = useIsMobile();
 
   const locked = isMonthLocked(year, month);
   const orderedUsers = useMemo(
@@ -226,6 +229,36 @@ const PlanningPage = () => {
         <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-xs">
             <thead>
+              <tr className="border-b bg-muted/20">
+                <th className="sticky left-0 bg-muted/20 z-10 px-3 py-1 text-left text-[10px] font-medium text-muted-foreground">Sem.</th>
+                {(() => {
+                  const cells: React.ReactNode[] = [];
+                  let i = 0;
+                  while (i < days.length) {
+                    const d = days[i];
+                    const week = getISOWeek(new Date(year, month, d));
+                    let span = 1;
+                    while (
+                      i + span < days.length &&
+                      getISOWeek(new Date(year, month, days[i + span])) === week
+                    ) {
+                      span++;
+                    }
+                    cells.push(
+                      <th
+                        key={`w-${d}`}
+                        colSpan={span}
+                        className="px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground border-l"
+                      >
+                        S{week}
+                      </th>
+                    );
+                    i += span;
+                  }
+                  return cells;
+                })()}
+                <th className="px-3 py-1" />
+              </tr>
               <tr className="border-b">
                 <th className="sticky left-0 bg-card z-10 px-3 py-2 text-left font-medium min-w-[120px]">Agent</th>
                 {days.map(d => {
@@ -233,15 +266,20 @@ const PlanningPage = () => {
                   const isWeekend = dow === 0 || dow === 6;
                   const isToday = d === todayDay;
                   const isSelected = (viewMode === 'today' || withMe) && d === safeSelectedDay;
+                  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                  const holiday = isHoliday(dateStr);
                   return (
                     <th
                       key={d}
                       onClick={() => setSelectedDay(d)}
+                      title={holiday ? 'Jour férié — majoration applicable' : undefined}
                       className={`px-1 py-2 text-center min-w-[36px] cursor-pointer select-none ${
                         isSelected
                           ? 'bg-primary/15 ring-1 ring-inset ring-primary'
                           : isToday
                           ? 'bg-muted ring-1 ring-inset ring-border'
+                          : holiday
+                          ? 'bg-amber-200/40 dark:bg-amber-500/15 ring-1 ring-inset ring-amber-400/50'
                           : isWeekend
                           ? 'bg-muted/50'
                           : ''
@@ -267,17 +305,35 @@ const PlanningPage = () => {
                     const isWeekend = dow === 0 || dow === 6;
                     const isToday = d === todayDay;
                     const isSelected = (viewMode === 'today' || withMe) && d === safeSelectedDay;
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const holiday = isHoliday(dateStr);
                     return (
                       <td
                         key={d}
-                        className={`px-1 py-1 text-center ${
-                          isSelected ? 'bg-primary/10' : isToday ? 'bg-muted/60' : isWeekend ? 'bg-muted/30' : ''
+                        className={`px-1 py-1 text-center relative ${
+                          isSelected
+                            ? 'bg-primary/10'
+                            : isToday
+                            ? 'bg-muted/60'
+                            : holiday
+                            ? 'bg-amber-100/50 dark:bg-amber-500/10'
+                            : isWeekend
+                            ? 'bg-muted/30'
+                            : ''
                         }`}
                       >
                         {entry && (
                           <span className="inline-block px-1 py-0.5 rounded text-[10px] font-semibold border" style={shiftStyle(byCode.get(entry.shiftCode)?.color)}>
                             {entry.shiftCode}
                           </span>
+                        )}
+                        {holiday && entry && (
+                          <div
+                            className="text-[9px] leading-none mt-0.5 text-amber-700 dark:text-amber-400 font-semibold"
+                            aria-label="Jour férié"
+                          >
+                            {isMobile ? '💰' : '💰 x2'}
+                          </div>
                         )}
                       </td>
                     );

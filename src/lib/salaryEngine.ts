@@ -100,10 +100,15 @@ export function computeSalary(input: SalaryInput): SalaryBreakdown {
   let sundayHours = 0;
   let holidayHours = 0;
   const workedDays = new Set<string>();
+  const mealBonusDays = new Set<string>();
 
   for (const e of monthEntries) {
-    if (e.shiftCode === 'ABS') continue;
     const shift = shiftsByCode.get(e.shiftCode);
+    // Compte la prime panier si le code est marqué comme éligible (par défaut true)
+    if (shift && shift.countForMealBonus !== false) {
+      mealBonusDays.add(e.date);
+    }
+    if (e.shiftCode === 'ABS') continue;
     if (!shift) continue;
     const h = shift.hours || 0;
     workedHoursMonth += h;
@@ -159,7 +164,7 @@ export function computeSalary(input: SalaryInput): SalaryBreakdown {
   // ---- Primes fixes ----
   const primeHabillage = workedDays.size > 0 ? settings.primeHabillage : 0;
   const primeCarburant = workedDays.size > 0 ? settings.primeCarburant : 0;
-  const primePanier = +(workedDays.size * settings.primePanier).toFixed(2);
+  const primePanier = +(mealBonusDays.size * settings.primePanier).toFixed(2);
 
   // ---- Primes remplacement ----
   const primeRemplacement = replacements.reduce((sum, r) => {

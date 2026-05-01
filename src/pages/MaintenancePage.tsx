@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash2, Save, Pencil, X, GripVertical, ShieldCheck, ShieldOff, Mail, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useShifts, shiftStyle } from '@/hooks/useShifts';
-import { upsertShift, deleteShift, defaultColorFor, DynamicShift } from '@/lib/shiftsStore';
+import { upsertShift, deleteShift, defaultColorFor, defaultCountForMealBonus, DynamicShift } from '@/lib/shiftsStore';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useDisplaySettings } from '@/hooks/useDisplaySettings';
 import { applyAgentOrder, saveAgentOrder } from '@/lib/displayStore';
 import { useSalarySettings } from '@/hooks/useSalarySettings';
@@ -40,6 +41,7 @@ const emptyDraft: DynamicShift = {
   time: '',
   color: defaultColorFor('day'),
   category: 'day',
+  countForMealBonus: true,
 };
 
 const MaintenancePage = () => {
@@ -143,6 +145,13 @@ const MaintenancePage = () => {
                       </span>
                     </Field>
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={draft.countForMealBonus !== false}
+                      onCheckedChange={v => setDraft({ ...draft, countForMealBonus: v === true })}
+                    />
+                    <span className="text-sm">Pris en compte dans la prime panier</span>
+                  </label>
                   <Button onClick={handleCreate} className="w-full"><Save className="h-4 w-4" /> Créer</Button>
                 </CardContent>
               </Card>
@@ -173,6 +182,13 @@ const MaintenancePage = () => {
                             </span>
                           </Field>
                         </div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <Checkbox
+                            checked={e.countForMealBonus !== false}
+                            onCheckedChange={v => setEditing({ ...editing, [s.code]: { ...e, countForMealBonus: v === true } })}
+                          />
+                          <span className="text-sm">Pris en compte dans la prime panier</span>
+                        </label>
                         <div className="flex gap-2">
                           <Button onClick={() => saveEdit(s.code)} size="sm"><Save className="h-4 w-4" /> Enregistrer</Button>
                           <Button onClick={() => cancelEdit(s.code)} size="sm" variant="outline">Annuler</Button>
@@ -188,7 +204,10 @@ const MaintenancePage = () => {
                         </span>
                         <div className="min-w-0">
                           <p className="font-medium truncate">{s.label}</p>
-                          <p className="text-xs text-muted-foreground">{s.hours}h • {s.time || '—'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {s.hours}h • {s.time || '—'}
+                            {s.countForMealBonus !== false && <span className="ml-2">🍽️</span>}
+                          </p>
                         </div>
                       </div>
                       <div className="flex gap-1">
