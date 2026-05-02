@@ -327,14 +327,23 @@ const PlanningPage = () => {
                             {entry.shiftCode}
                           </span>
                         )}
-                        {holiday && entry && (
-                          <div
-                            className="text-[9px] leading-none mt-0.5 text-amber-700 dark:text-amber-400 font-semibold"
-                            aria-label="Jour férié"
-                          >
-                            {isMobile ? '💰' : '💰 x2'}
-                          </div>
-                        )}
+                        {holiday && entry && (() => {
+                          const sh = byCode.get(entry.shiftCode);
+                          const code = entry.shiftCode;
+                          const isNonWork =
+                            code === 'ABS' || code === 'CP' || code === 'RC' || code === 'REC' ||
+                            sh?.category === 'rest' || sh?.category === 'absence' ||
+                            !sh || (sh.hours || 0) <= 0;
+                          if (isNonWork) return null;
+                          return (
+                            <div
+                              className="text-[9px] leading-none mt-0.5 text-amber-700 dark:text-amber-400 font-semibold"
+                              aria-label="Jour férié travaillé"
+                            >
+                              {isMobile ? '💰' : '💰 x2'}
+                            </div>
+                          );
+                        })()}
                       </td>
                     );
                   })}
